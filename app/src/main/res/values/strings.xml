@@ -1,8 +1,12 @@
 <resources>
     <string name="app_name">Open Sesame</string>
     <string name="open_door">Unlock Door</string>
+    <string name="reconnect">Reconnect</string>
     <string name="title_activity_settings">Settings</string>
     <string name="settings">Settings</string>
+    <string name="unlocked">Unlocked</string>
+    <string name="locked">Locked</string>
+    <string name="unknown">Unknown</string>
 
     <!-- Preference Titles -->
     <string name="messages_header">Messages</string>
