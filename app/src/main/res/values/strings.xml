@@ -26,4 +26,5 @@
     <string name="error_auth_failure">Wrong username or password</string>
     <string name="error_response_invalid">Server response is missing attribute</string>
     <string name="error_no_response">Error requesting information from server</string>
+    <string name="error_unknown">Unknown error while communicating with server</string>
 </resources>
