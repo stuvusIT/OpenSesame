@@ -63,6 +63,57 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    private void doRequest(final int method, JSONObject request, Response.Listener<JSONObject> response_listener) {
+        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest
+                (method, url, request, response_listener,
+                        new Response.ErrorListener() {
+                            @Override
+                            public void onErrorResponse(VolleyError error) {
+                                Log.e("Volly Error", error.toString());
+                                if (error instanceof TimeoutError) {
+                                    toast(R.string.error_network_timeout);
+                                } else if (error instanceof NoConnectionError) {
+                                    toast(R.string.error_no_response);
+                                } else if (error instanceof AuthFailureError) {
+                                    toast(R.string.error_auth_failure);
+                                } else {
+                                    toast(R.string.error_unknown);
+                                }
+                                NetworkResponse networkResponse = error.networkResponse;
+                                if (networkResponse != null) {
+                                    Log.e("Status code", String.valueOf(networkResponse.statusCode));
+                                }
+                            }
+                        }
+                ) {
+            @Override
+            public Map<String, String> getHeaders() {
+                Map<String, String> headers = new HashMap<>();
+                // add headers <key,value>
+                SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+                String username = prefs.getString("username", "");
+                String password = prefs.getString("password", "");
+                String credentials = username + ":" + password;
+                String auth = "Basic "
+                        + Base64.encodeToString(credentials.getBytes(),
+                        Base64.NO_WRAP);
+                headers.put("Authorization", auth);
+                return headers;
+            }
+
+            @Override
+            protected Response<JSONObject> parseNetworkResponse(NetworkResponse response) {
+                if (response.data.length == 0) {
+                    byte[] responseData = "{}".getBytes();
+                    response = new NetworkResponse(response.statusCode, responseData, response.notModified, response.networkTimeMs, response.allHeaders);
+                }
+
+                return super.parseNetworkResponse(response);
+            }
+        };
+        queue.add(jsonObjectRequest);
+    }
+
     @Override
     protected void onPause() {
         handler.removeCallbacks(runnableCode);
@@ -115,46 +166,13 @@ public class MainActivity extends AppCompatActivity {
         try {
             if (unlock) {
                 json.put("state", "Unlocked");
-            }else{
+            } else {
                 json.put("state", "Locked");
             }
         } catch (JSONException e) {
             e.printStackTrace();
         }
-        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest
-                (Request.Method.PUT, url, json, null,
-                        new Response.ErrorListener() {
-                            @Override
-                            public void onErrorResponse(VolleyError error) {
-                                Log.e("Volly Error", error.toString());
-                                if (error instanceof TimeoutError || error instanceof NoConnectionError) {
-                                    toast(R.string.error_network_timeout);
-                                } else if (error instanceof AuthFailureError) {
-                                    toast(R.string.error_auth_failure);
-                                }
-                                NetworkResponse networkResponse = error.networkResponse;
-                                if (networkResponse != null) {
-                                    Log.e("Status code", String.valueOf(networkResponse.statusCode));
-                                }
-                            }
-                        }
-                        ) {
-            @Override
-            public Map<String, String> getHeaders() {
-                Map<String, String>  headers = new HashMap<>();
-                // add headers <key,value>
-                SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-                String username = prefs.getString("username", "");
-                String password = prefs.getString("password", "");
-                String credentials = username +":"+ password;
-                String auth = "Basic "
-                        + Base64.encodeToString(credentials.getBytes(),
-                        Base64.NO_WRAP);
-                headers.put("Authorization", auth);
-                return headers;
-            }
-        };
-        queue.add(jsonObjectRequest);
+        doRequest(Request.Method.PUT, json, null);
     }
 
 
@@ -176,35 +194,26 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void getDoorState() {
-        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest
-                (Request.Method.GET, url, null, new Response.Listener<JSONObject>() {
-
-                    @Override
-                    public void onResponse(JSONObject response) {
-                        Log.v("Main", response.toString());
-                        boolean tmp_door_unlocked;
-                        try {
-                            if (response.getString("state").equals("Locked")) {
-                                tmp_door_unlocked = false;
-                            } else {
-                                tmp_door_unlocked = true;
-                            }
-                            if(tmp_door_unlocked != door_unlocked){
-                               door_unlocked = tmp_door_unlocked;
-                               updateUi(door_unlocked);
-                            }
-                        } catch (JSONException e) {
-                            toast(R.string.error_response_invalid);
-                            e.printStackTrace();
-                        }
+        doRequest(Request.Method.GET, null, new Response.Listener<JSONObject>() {
+            @Override
+            public void onResponse(JSONObject response) {
+                Log.v("Main", response.toString());
+                boolean tmp_door_unlocked;
+                try {
+                    if (response.getString("state").equals("Locked")) {
+                        tmp_door_unlocked = false;
+                    } else {
+                        tmp_door_unlocked = true;
                     }
-                }, new Response.ErrorListener() {
-
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        toast(R.string.error_no_response);
+                    if (tmp_door_unlocked != door_unlocked) {
+                        door_unlocked = tmp_door_unlocked;
+                        updateUi(door_unlocked);
                     }
-                });
-        queue.add(jsonObjectRequest);
+                } catch (JSONException e) {
+                    toast(R.string.error_response_invalid);
+                    e.printStackTrace();
+                }
+            }
+        });
     }
 }
