@@ -51,6 +51,18 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    private void toast(final int text_id) {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(getApplicationContext(),
+                        getApplicationContext().getString(text_id),
+                        Toast.LENGTH_LONG).show();
+            }
+        });
+
+    }
+
     @Override
     protected void onPause() {
         handler.removeCallbacks(runnableCode);
@@ -116,13 +128,9 @@ public class MainActivity extends AppCompatActivity {
                             public void onErrorResponse(VolleyError error) {
                                 Log.e("Volly Error", error.toString());
                                 if (error instanceof TimeoutError || error instanceof NoConnectionError) {
-                                    Toast.makeText(getApplicationContext(),
-                                            getApplicationContext().getString(R.string.error_network_timeout),
-                                            Toast.LENGTH_LONG).show();
+                                    toast(R.string.error_network_timeout);
                                 } else if (error instanceof AuthFailureError) {
-                                    Toast.makeText(getApplicationContext(),
-                                            getApplicationContext().getString(R.string.error_auth_failure),
-                                            Toast.LENGTH_LONG).show();
+                                    toast(R.string.error_auth_failure);
                                 }
                                 NetworkResponse networkResponse = error.networkResponse;
                                 if (networkResponse != null) {
@@ -186,7 +194,7 @@ public class MainActivity extends AppCompatActivity {
                                updateUi(door_unlocked);
                             }
                         } catch (JSONException e) {
-                            Toast.makeText(getApplicationContext(), "Server response is missing attribute", Toast.LENGTH_LONG).show();
+                            toast(R.string.error_response_invalid);
                             e.printStackTrace();
                         }
                     }
@@ -194,8 +202,7 @@ public class MainActivity extends AppCompatActivity {
 
                     @Override
                     public void onErrorResponse(VolleyError error) {
-                        Toast.makeText(getApplicationContext(), "Error requesting information from server", Toast.LENGTH_LONG).show();
-
+                        toast(R.string.error_no_response);
                     }
                 });
         queue.add(jsonObjectRequest);
