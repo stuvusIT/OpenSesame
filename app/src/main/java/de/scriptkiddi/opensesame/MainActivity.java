@@ -17,6 +17,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.android.volley.AuthFailureError;
@@ -39,7 +40,11 @@ import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
-    private boolean door_unlocked = false;
+    private enum State {
+        UNKNOWN, LOCKED, UNLOCKED;
+    }
+
+    private State door_state = State.UNKNOWN;
     private String url = "https://door.stuvus.uni-stuttgart.de/castle/lock";
     private RequestQueue queue;
     private Handler handler = new Handler();
@@ -47,7 +52,6 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void run() {
             getDoorState();
-            handler.postDelayed(runnableCode, 500);
         }
     };
 
@@ -63,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private void doRequest(final int method, JSONObject request, Response.Listener<JSONObject> response_listener) {
+    private void doRequest(final int method, JSONObject request, Response.Listener<JSONObject> response_listener, final Runnable error_listener) {
         JsonObjectRequest jsonObjectRequest = new JsonObjectRequest
                 (method, url, request, response_listener,
                         new Response.ErrorListener() {
@@ -82,6 +86,9 @@ public class MainActivity extends AppCompatActivity {
                                 NetworkResponse networkResponse = error.networkResponse;
                                 if (networkResponse != null) {
                                     Log.e("Status code", String.valueOf(networkResponse.statusCode));
+                                }
+                                if(error_listener != null) {
+                                    error_listener.run();
                                 }
                             }
                         }
@@ -153,11 +160,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    public void toggleDoor(View v) {
-        if(!door_unlocked){
-            controlDoor(true);
-        }else{
-            controlDoor(false);
+    public void buttonClicked(View v) {
+        switch (door_state) {
+            case LOCKED:
+                controlDoor(true);
+                break;
+            case UNLOCKED:
+                controlDoor(false);
+                break;
+            case UNKNOWN:
+            default:
+                handler.post(runnableCode);
+                break;
         }
     }
 
@@ -172,25 +186,51 @@ public class MainActivity extends AppCompatActivity {
         } catch (JSONException e) {
             e.printStackTrace();
         }
-        doRequest(Request.Method.PUT, json, null);
+        doRequest(Request.Method.PUT, json, null, null);
     }
 
 
-    private void updateUi(boolean door_unlocked) {
+    private void updateUi(State state) {
         Button door_button = findViewById(R.id.door_button);
+        TextView state_text = findViewById(R.id.state_text);
         ImageView icon = findViewById(R.id.nili_icon);
-        if (door_unlocked) {
-            door_button.setText(R.string.close_door);
-            door_button.setTextColor(Color.parseColor("#000000"));
-            door_button.setBackgroundTintList(ColorStateList.valueOf(getResources().getColor(R.color.colorPrimary)));
-            icon.setImageDrawable(getDrawable(R.drawable.stuvus_icon_open));
-        } else {
-            door_button.setText(R.string.open_door);
-            door_button.setTextColor(Color.parseColor("#FFFFFF"));
-            icon.setImageDrawable(getDrawable(R.drawable.stuvus_icon_locked));
-            door_button.setBackgroundTintList(ColorStateList.valueOf(getResources().getColor(R.color.colorPrimaryDark)));
+        switch (state) {
+            case LOCKED:
+                door_button.setText(R.string.open_door);
+                door_button.setTextColor(Color.parseColor("#FFFFFF"));
+                state_text.setText(R.string.locked);
+                state_text.setTextColor(Color.parseColor("#FFFFFF"));
+                state_text.setBackgroundColor(getResources().getColor(R.color.colorPrimaryDark));
+                icon.setImageDrawable(getDrawable(R.drawable.stuvus_icon_locked));
+                door_button.setBackgroundTintList(ColorStateList.valueOf(getResources().getColor(R.color.colorPrimaryDark)));
+                break;
+            case UNLOCKED:
+                door_button.setText(R.string.close_door);
+                door_button.setTextColor(Color.parseColor("#000000"));
+                state_text.setText(R.string.unlocked);
+                state_text.setTextColor(Color.parseColor("#000000"));
+                state_text.setBackgroundColor(getResources().getColor(R.color.colorPrimary));
+                door_button.setBackgroundTintList(ColorStateList.valueOf(getResources().getColor(R.color.colorPrimary)));
+                icon.setImageDrawable(getDrawable(R.drawable.stuvus_icon_open));
+                break;
+            case UNKNOWN:
+            default:
+                door_button.setText(R.string.reconnect);
+                door_button.setTextColor(Color.parseColor("#FFFFFF"));
+                state_text.setText(R.string.unknown);
+                state_text.setTextColor(Color.parseColor("#FFFFFF"));
+                state_text.setBackgroundColor(getResources().getColor(R.color.colorAccentGrey));
+                icon.setImageDrawable(getDrawable(R.drawable.stuvus_icon_unknown));
+                door_button.setBackgroundTintList(ColorStateList.valueOf(getResources().getColor(R.color.colorAccentGrey)));
+                break;
         }
+    }
 
+    private void updateState(State state) {
+        if (state != door_state) {
+            door_state = state;
+            updateUi(door_state);
+        }
     }
 
     private void getDoorState() {
@@ -198,21 +238,24 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onResponse(JSONObject response) {
                 Log.v("Main", response.toString());
-                boolean tmp_door_unlocked;
                 try {
                     if (response.getString("state").equals("Locked")) {
-                        tmp_door_unlocked = false;
+                        updateState(State.LOCKED);
+                        handler.postDelayed(runnableCode, 500);
                     } else {
-                        tmp_door_unlocked = true;
-                    }
-                    if (tmp_door_unlocked != door_unlocked) {
-                        door_unlocked = tmp_door_unlocked;
-                        updateUi(door_unlocked);
+                        updateState(State.UNLOCKED);
+                        handler.postDelayed(runnableCode, 500);
                     }
                 } catch (JSONException e) {
                     toast(R.string.error_response_invalid);
+                    updateState(State.UNKNOWN);
                     e.printStackTrace();
                 }
+            }
+        }, new Runnable() {
+            @Override
+            public void run() {
+                updateState(State.UNKNOWN);
             }
         });
     }
